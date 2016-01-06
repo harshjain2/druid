@@ -26,37 +26,52 @@ OSes](http://www.webupd8.org/2012/09/install-oracle-java-8-in-ubuntu-via-ppa.htm
 To install Druid, issue the following commands in your terminal: 
 
 ```bash
-curl -O http://static.druid.io/artifacts/releases/druid-0.8.2-bin.tar.gz
-tar -xzf druid-0.8.2-bin.tar.gz
-cd druid-0.8.2
+curl -O http://static.druid.io/artifacts/releases/druid-0.9.0-bin.tar.gz
+tar -xzf druid-0.9.0-bin.tar.gz
+cd druid-0.9.0
 ```
 
 In the package, you should find:
 
-* `bin/*` - run scripts for included software.
+* `LICENSE` - the license files.
 * `conf/*` - template configurations for a clustered setup.
 * `conf-quickstart/*` - configurations for this quickstart.
-* `dist/*` - all included software.
+* `extensions/*` - all Druid extensions.
+* `hadoop-dependencies/*` - Druid Hadoop dependencies.
+* `lib/*` - all included software packages for core Druid.
 * `quickstart/*` - files useful for this quickstart.
 
-## Start up services
+## Start up Zookeeper
 
-Next, you'll need to start up [Apache ZooKeeper](http://zookeeper.apache.org/) and the different Druid processes.
+Druid currently has a dependency on [Apache ZooKeeper](http://zookeeper.apache.org/) for distributed coordination. You'll 
+need to download and run Zookeeper.
 
 ```bash
-java `cat conf-quickstart/zk/jvm.config | xargs` -cp "dist/zk/lib/*:/dist/zk/*:conf-quickstart/zk" org.apache.zookeeper.server.quorum.QuorumPeerMain conf-quickstart/zk/zoo.cfg > var/sv/zk.log
-java `cat conf-quickstart/druid/historical/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/historical:dist/druid/lib/*.jar io.druid.cli.Main server historical > var/sv/historical.log
-java `cat conf-quickstart/druid/broker/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/broker:dist/druid/lib/*.jar io.druid.cli.Main server broker > var/broker.log > var/sv/broker.log
-java `cat conf-quickstart/druid/coordinator/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/coordinator:dist/druid/lib/*.jar io.druid.cli.Main server coordinator > var/sv/coordinator.log
-java `cat conf-quickstart/druid/overlord/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/overlord:dist/druid/lib/*.jar io.druid.cli.Main server overlord > var/sv/overlord.log
-java `cat conf-quickstart/druid/middleManager/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/middleManager:dist/druid/lib/*.jar io.druid.cli.Main server middleManager > var/sv/middleManager.log
+curl http://www.gtlib.gatech.edu/pub/apache/zookeeper/zookeeper-3.4.7/zookeeper-3.4.7.tar.gz -o $zookeeper-3.4.7.tar.gz
+tar xzf $zookeeper-3.4.7.tar.gz
+cd zookeeper-3.4.7
+cp conf/zoo_sample.cfg conf/zoo.cfg
+./bin/zkServer.sh start
+cd ..
+```
+
+## Start up Druid services
+
+With Zookeeper running, we can now start up the Druid processes.
+
+```bash
+java `cat conf-quickstart/druid/historical/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/historical:lib/*.jar io.druid.cli.Main server historical > var/log/historical.log
+java `cat conf-quickstart/druid/broker/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/broker:lib/*.jar io.druid.cli.Main server broker > var/broker.log > var/log/broker.log
+java `cat conf-quickstart/druid/coordinator/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/coordinator:lib/*.jar io.druid.cli.Main server coordinator > var/log/coordinator.log
+java `cat conf-quickstart/druid/overlord/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/overlord:lib/*.jar io.druid.cli.Main server overlord > var/log/overlord.log
+java `cat conf-quickstart/druid/middleManager/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/middleManager:lib/*.jar io.druid.cli.Main server middleManager > var/log/middleManager.log
 ```
 
 You should see a log message printed out for each service that starts up. You can view detailed logs
-for any service by looking in the `var/sv/` directory using another terminal.
+for any service by looking in the `log/` directory using another terminal.
 
 Later on, if you'd like to stop the services, CTRL-C the supervise program in your terminal. If you
-want a clean start after stopping the services, simply remove the `var/` directory. 
+want a clean start after stopping the services, simply remove the `log/` directory. 
 
 Once every service has started, you are now ready to load data.
 
