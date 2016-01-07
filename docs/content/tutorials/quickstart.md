@@ -10,8 +10,9 @@ In this quickstart, we will download Druid, set up it up on a single machine, lo
 
 You will need:
 
-  * Java 7 or better
+  * Java 7 or higher
   * Linux, Mac OS X, or other Unix-like OS (Windows is not supported)
+  * 8G of RAM  
 
 On Mac OS X, you can use [Oracle's JDK
 8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) to install
@@ -52,7 +53,6 @@ tar xzf $zookeeper-3.4.7.tar.gz
 cd zookeeper-3.4.7
 cp conf/zoo_sample.cfg conf/zoo.cfg
 ./bin/zkServer.sh start
-cd ..
 ```
 
 ## Start up Druid services
@@ -60,18 +60,18 @@ cd ..
 With Zookeeper running, we can now start up the Druid processes.
 
 ```bash
-java `cat conf-quickstart/druid/historical/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/historical:lib/*.jar io.druid.cli.Main server historical > var/log/historical.log
-java `cat conf-quickstart/druid/broker/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/broker:lib/*.jar io.druid.cli.Main server broker > var/broker.log > var/log/broker.log
-java `cat conf-quickstart/druid/coordinator/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/coordinator:lib/*.jar io.druid.cli.Main server coordinator > var/log/coordinator.log
-java `cat conf-quickstart/druid/overlord/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/overlord:lib/*.jar io.druid.cli.Main server overlord > var/log/overlord.log
-java `cat conf-quickstart/druid/middleManager/jvm.config | xargs` -cp conf-quickstart/druid/_common:conf-quickstart/middleManager:lib/*.jar io.druid.cli.Main server middleManager > var/log/middleManager.log
+java `cat conf-quickstart/historical/jvm.config | xargs` -cp conf-quickstart/_common:conf-quickstart/historical:lib/*.jar io.druid.cli.Main server historical > var/druid/log/historical.log
+java `cat conf-quickstart/broker/jvm.config | xargs` -cp conf-quickstart/_common:conf-quickstart/broker:lib/*.jar io.druid.cli.Main server broker > var/druid/log/broker.log
+java `cat conf-quickstart/coordinator/jvm.config | xargs` -cp conf-quickstart/_common:conf-quickstart/coordinator:lib/*.jar io.druid.cli.Main server coordinator > var/druid/log/coordinator.log
+java `cat conf-quickstart/overlord/jvm.config | xargs` -cp conf-quickstart/_common:conf-quickstart/overlord:lib/*.jar io.druid.cli.Main server overlord > var/druid/log/overlord.log
+java `cat conf-quickstart/middleManager/jvm.config | xargs` -cp conf-quickstart/_common:conf-quickstart/middleManager:lib/*.jar io.druid.cli.Main server middleManager > var/druid/log/middleManager.log
 ```
 
 You should see a log message printed out for each service that starts up. You can view detailed logs
-for any service by looking in the `log/` directory using another terminal.
+for any service by looking in the `var/log/` directory using another terminal.
 
-Later on, if you'd like to stop the services, CTRL-C the supervise program in your terminal. If you
-want a clean start after stopping the services, simply remove the `log/` directory. 
+Later on, if you'd like to stop the services, CTRL-C any of the running java processes. If you
+want a clean start after stopping the services, simply remove the `var/` directory. 
 
 Once every service has started, you are now ready to load data.
 
@@ -105,7 +105,7 @@ filter and split on) in the Wikipedia dataset, other than time, are:
   * regionName
   * user
 
-The [measures](https://en.wikipedia.org/wiki/Measure_%28data_warehouse%29) (values you can aggregate)
+The [measures](https://en.wikipedia.org/wiki/Measure_%28data_warehouse%29), or *metrics* as they are known in Druid (values you can aggregate)
 in the Wikipedia dataset are:
 
   * count
@@ -151,7 +151,7 @@ questions are:
 want to load multiple files, you can provide them as a comma-separated string.
   * Which field should be treated as a timestamp? This belongs in the "column" of the "timestampSpec".
   * Which fields should be treated dimensions? This belongs in the "dimensions" of the "dimensionsSpec".
-  * Which fields should be treated as measures? This belongs in the "metricsSpec".
+  * Which fields should be treated as metrics? This belongs in the "metricsSpec".
   * What time ranges (intervals) are being loaded? This belongs in the "intervals" of the "granularitySpec".
 
 ```note-info
@@ -175,7 +175,7 @@ If you save this to a file called "pageviews.json", then for this dataset:
   * The data is located in "pageviews.json".
   * The timestamp is the "time" field.
   * Good choices for dimensions are the string fields "url" and "user".
-  * Good choices for measures are a count of pageviews, and the sum of "latencyMs". Collecting that
+  * Good choices for metrics are a count of pageviews, and the sum of "latencyMs". Collecting that
 sum when we load the data will allow us to compute an average at query time as well.
   * The data covers the time range 2015-09-01 (inclusive) through 2015-09-02 (exclusive).
 
@@ -245,8 +245,6 @@ documentation.
 ```
 
 ## Query data
-
-We've included several different ways you can interact with the data you've just ingested.
 
 ### Direct Druid queries
 

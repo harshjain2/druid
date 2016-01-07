@@ -3,111 +3,82 @@ layout: doc_page
 ---
 
 # Batch Data Ingestion
-There are two choices for batch data ingestion to your Druid cluster, you can use the [Indexing service](../design/indexing-service.html) or you can use the `HadoopDruidIndexer`.
 
-Which should I use?
--------------------
+## Hadoop-based Batch Ingestion
 
-The [Indexing service](../design/indexing-service.html) is a set of nodes that can run as part of your Druid cluster and can accomplish a number of different types of indexing tasks. Even if all you care about is batch indexing, it provides for the encapsulation of things like the [metadata store](../dependencies/metadata-storage.html) that is used for segment metadata and other things, so that your indexing tasks do not need to include such information. The indexing service was created such that external systems could programmatically interact with it and run periodic indexing tasks. Long-term, the indexing service is going to be the preferred method of ingesting data.
-
-The `HadoopDruidIndexer` runs hadoop jobs in order to separate and index data segments. It takes advantage of Hadoop as a job scheduling and distributed job execution platform. It is a simple method if you already have Hadoop running and don’t want to spend the time configuring and deploying the [Indexing service](../design/indexing-service.html) just yet.
-
-## Batch Ingestion using the HadoopDruidIndexer
-
-The HadoopDruidIndexer can be run like so:
-
-```
-java -Xmx256m -Duser.timezone=UTC -Dfile.encoding=UTF-8 -classpath lib/*:<hadoop_config_path> io.druid.cli.Main index hadoop <spec_file>
-```
-
-## Hadoop "specFile"
-
-The spec\_file is a path to a file that contains JSON and an example looks like:
+Hadoop-based batch ingestion in Druid is supported via a Hadoop-ingestion task. These tasks can be posted to a running instance  
+of a Druid [overlord](../design/indexing-service.html). A sample task is shown below:
 
 ```json
 {
-  "dataSchema" : {
-    "dataSource" : "wikipedia",
-    "parser" : {
-      "type" : "hadoopyString",
-      "parseSpec" : {
-        "format" : "json",
-        "timestampSpec" : {
-          "column" : "timestamp",
-          "format" : "auto"
-        },
-        "dimensionsSpec" : {
-          "dimensions": ["page","language","user","unpatrolled","newPage","robot","anonymous","namespace","continent","country","region","city"],
-          "dimensionExclusions" : [],
-          "spatialDimensions" : []
+  "type" : "index_hadoop",
+  "spec" : {
+    "dataSchema" : {
+      "dataSource" : "wikipedia",
+      "parser" : {
+        "type" : "hadoopyString",
+        "parseSpec" : {
+          "format" : "json",
+          "timestampSpec" : {
+            "column" : "timestamp",
+            "format" : "auto"
+          },
+          "dimensionsSpec" : {
+            "dimensions": ["page","language","user","unpatrolled","newPage","robot","anonymous","namespace","continent","country","region","city"],
+            "dimensionExclusions" : [],
+            "spatialDimensions" : []
+          }
         }
+      },
+      "metricsSpec" : [
+        {
+          "type" : "count",
+          "name" : "count"
+        },
+        {
+          "type" : "doubleSum",
+          "name" : "added",
+          "fieldName" : "added"
+        },
+        {
+          "type" : "doubleSum",
+          "name" : "deleted",
+          "fieldName" : "deleted"
+        },
+        {
+          "type" : "doubleSum",
+          "name" : "delta",
+          "fieldName" : "delta"
+        }
+      ],
+      "granularitySpec" : {
+        "type" : "uniform",
+        "segmentGranularity" : "DAY",
+        "queryGranularity" : "NONE",
+        "intervals" : [ "2013-08-31/2013-09-01" ]
       }
     },
-    "metricsSpec" : [
-      {
-        "type" : "count",
-        "name" : "count"
-      },
-      {
-        "type" : "doubleSum",
-        "name" : "added",
-        "fieldName" : "added"
-      },
-      {
-        "type" : "doubleSum",
-        "name" : "deleted",
-        "fieldName" : "deleted"
-      },
-      {
-        "type" : "doubleSum",
-        "name" : "delta",
-        "fieldName" : "delta"
+    "ioConfig" : {
+      "type" : "hadoop",
+      "inputSpec" : {
+        "type" : "static",
+        "paths" : "/MyDirectory/examples/indexing/wikipedia_data.json"
       }
-    ],
-    "granularitySpec" : {
-      "type" : "uniform",
-      "segmentGranularity" : "DAY",
-      "queryGranularity" : "NONE",
-      "intervals" : [ "2013-08-31/2013-09-01" ]
+    },
+    "tuningConfig" : {
+      "type": "hadoop"
     }
-  },
-  "ioConfig" : {
-    "type" : "hadoop",
-    "inputSpec" : {
-      "type" : "static",
-      "paths" : "/MyDirectory/examples/indexing/wikipedia_data.json"
-    },
-    "metadataUpdateSpec" : {
-      "type":"mysql",
-      "connectURI" : "jdbc:mysql://localhost:3306/druid",
-      "password" : "diurd",
-      "segmentTable" : "druid_segments",
-      "user" : "druid"
-    },
-    "segmentOutputPath" : "/MyDirectory/data/index/output"
-  },
-  "tuningConfig" : {
-    "type" : "hadoop",
-    "workingPath": "/tmp",
-    "partitionsSpec" : {
-      "type" : "dimension",
-      "partitionDimension" : null,
-      "targetPartitionSize" : 5000000,
-      "maxPartitionSize" : 7500000,
-      "assumeGrouped" : false,
-      "numShards" : -1
-    },
-    "shardSpecs" : { },
-    "leaveIntermediate" : false,
-    "cleanupOnFailure" : true,
-    "overwriteFiles" : false,
-    "ignoreInvalidRows" : false,
-    "jobProperties" : { },
-    "combineText" : false,        
-    "rowFlushBoundary" : 300000
   }
 }
 ```
+
+
+|property|description|required?|
+|--------|-----------|---------|
+|type|The task type, this should always be "index_hadoop".|yes|
+|spec|A Hadoop Index Spec. See [Batch Ingestion](../ingestion/batch-ingestion.html)|yes|
+|hadoopDependencyCoordinates|A JSON array of Hadoop dependency coordinates that Druid will use, this property will override the default Hadoop coordinates. Once specified, Druid will look for those Hadoop dependencies from the location specified by `druid.extensions.hadoopDependenciesDir`|no|
+|classpathPrefix|Classpath that will be pre-appended for the peon process.|no|
 
 ### DataSchema
 
@@ -261,29 +232,23 @@ The configuration options are:
 
 ### Remote Hadoop Cluster
 
-If you have a remote Hadoop cluster, make sure to include the folder holding your configuration `*.xml` files in the classpath of the indexer.
+If you have a remote Hadoop cluster, make sure to include the folder holding your configuration `*.xml` files in your Druid `_common` configuration folder.  
+If you having dependency problems with your version of Hadoop and the version compiled with Druid, please see [these docs](../operations/other-hadoop.html).
 
-Batch Ingestion Using the Indexing Service
-------------------------------------------
+## IndexTask-based Batch Ingestion
 
-Batch ingestion for the indexing service is done by submitting an [Index Task](../misc/tasks.html) (for datasets < 1G) or a [Hadoop Index Task](../misc/tasks.html). The indexing service can be started by issuing:
+If you do not want to have a dependency on Hadoop for batch ingestion, you can also use the index task. This task will be much slower and less scalable than the Hadoop-based method.
 
-```
-java -Xmx2g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -classpath lib/*:config/overlord io.druid.cli.Main server overlord
-```
-
-This will start up a very simple local indexing service. For more complex deployments of the indexing service, see [here](../design/indexing-service.html).
-
-The schema of the Hadoop Index Task contains a task "type" and a Hadoop Index Config. A sample Hadoop index task is shown below:
+The Index Task is a simpler variation of the Index Hadoop task that is designed to be used for smaller data sets. The task executes within the indexing service and does not require an external Hadoop setup to use. The grammar of the index task is as follows:
 
 ```json
 {
-  "type" : "index_hadoop",
+  "type" : "index",
   "spec" : {
     "dataSchema" : {
       "dataSource" : "wikipedia",
       "parser" : {
-        "type" : "hadoopyString",
+        "type" : "string",
         "parseSpec" : {
           "format" : "json",
           "timestampSpec" : {
@@ -326,58 +291,66 @@ The schema of the Hadoop Index Task contains a task "type" and a Hadoop Index Co
       }
     },
     "ioConfig" : {
-      "type" : "hadoop",
-      "inputSpec" : {
-        "type" : "static",
-        "paths" : "/MyDirectory/examples/indexing/wikipedia_data.json"
-      }
+      "type" : "index",
+      "firehose" : {
+        "type" : "local",
+        "baseDir" : "examples/indexing/",
+        "filter" : "wikipedia_data.json"
+       }
     },
     "tuningConfig" : {
-      "type": "hadoop"
+      "type" : "index",
+      "targetPartitionSize" : -1,
+      "rowFlushBoundary" : 0,
+      "numShards": 1
     }
   }
 }
 ```
 
-### DataSchema
+#### Task Properties
+
+|property|description|required?|
+|--------|-----------|---------|
+|type|The task type, this should always be "index".|yes|
+|id|The task ID. If this is not explicitly specified, Druid generates the task ID using the name of the task file and date-time stamp. |no|
+|spec|The ingestion spec. See below for more details. |yes|
+
+#### DataSchema
 
 This field is required.
 
 See [Ingestion](../ingestion/index.html)
 
-### IOConfig
+#### IOConfig
 
-This field is required.
+This field is required. You can specify a type of [Firehose](../ingestion/firehose.html) here.
 
-|Field|Type|Description|Required|
-|-----|----|-----------|--------|
-|type|String|This should always be 'hadoop'.|yes|
-|pathSpec|Object|a specification of where to pull the data in from|yes|
+#### TuningConfig
 
-### TuningConfig
+The tuningConfig is optional and default parameters will be used if no tuningConfig is specified. See below for more details.
 
-The tuningConfig is optional and default parameters will be used if no tuningConfig is specified. This is the same as the tuningConfig for the standalone Hadoop indexer. See above for more details.
+|property|description|default|required?|
+|--------|-----------|-------|---------|
+|type|The task type, this should always be "index".|None.|yes|
+|targetPartitionSize|Used in sharding. Determines how many rows are in each segment. Set this to -1 to use numShards instead for sharding.|5000000|no|
+|rowFlushBoundary|Used in determining when intermediate persist should occur to disk.|500000|no|
+|numShards|Directly specify the number of shards to create. You can skip the intermediate persist step if you specify the number of shards you want and set targetPartitionSize=-1.|null|no|
+|indexSpec|defines segment storage format options to be used at indexing time, see [IndexSpec](#indexspec)|null|no|
 
-### Running the Task
+#### IndexSpec
 
-The Hadoop Index Config submitted as part of an Hadoop Index Task is identical to the Hadoop Index Config used by the `HadoopDruidIndexer` except that three fields must be omitted: `segmentOutputPath`, `workingPath`, `metadataUpdateSpec`. The Indexing Service takes care of setting these fields internally.
+The indexSpec defines segment storage format options to be used at indexing
+time, such as bitmap type, and column compression formats.
 
-To run the task:
+The indexSpec is optional and default parameters will be used if not specified.
 
-```
-curl -X 'POST' -H 'Content-Type:application/json' -d @example_index_hadoop_task.json localhost:8090/druid/indexer/v1/task
-```
-
-If the task succeeds, you should see in the logs of the indexing service:
-
-```
-2013-10-16 16:38:31,945 INFO [pool-6-thread-1] io.druid.indexing.overlord.exec.TaskConsumer - Task SUCCESS: HadoopIndexTask...
-```
-
-### Remote Hadoop Cluster
-
-If you have a remote Hadoop cluster, make sure to include the folder holding your configuration `*.xml` files in the classpath of the middle manager.
+|property|description|possible values|default|required?|
+|--------|-----------|---------------|-------|---------|
+|bitmap|type of bitmap compression to use for inverted indices.|`"concise"`, `"roaring"`|`"concise"`|no|
+|dimensionCompression|compression format for dimension columns (currently only affects single-value dimensions, multi-value dimensions are always uncompressed)|`"uncompressed"`, `"lz4"`, `"lzf"`|`"lz4"`|no|
+|metricCompression|compression format for metric columns, defaults to LZ4|`"lz4"`, `"lzf"`|`"lz4"`|no|
 
 Having Problems?
 ----------------
-Getting data into Druid can definitely be difficult for first time users. Please don't hesitate to ask questions in our IRC channel or on our [google groups page](https://groups.google.com/forum/#!forum/druid-development).
+Getting data into Druid can definitely be difficult for first time users. Please don't hesitate to ask questions in our IRC channel or on our [google groups page](https://groups.google.com/forum/#!forum/druid-user).
