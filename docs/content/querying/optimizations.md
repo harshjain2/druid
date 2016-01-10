@@ -2,6 +2,10 @@
 layout: doc_page
 ---
 
+This document contains additional query optimizations for certain types of queries.
+
+# Multi-value Dimensions
+
 Druid supports "multi-valued" dimensions. See the section on multi-valued columns in [segments](../design/segments.html) for internal representation details. This document describes the behavior of groupBy(topN has similar behavior) queries on multi-valued dimensions when they are used as a dimension being grouped by.
 
 Suppose, you have a dataSource with a segment that contains following rows with a multi-valued dimension called tags.

@@ -12,7 +12,8 @@ You will need:
 
   * Java 7 or higher
   * Linux, Mac OS X, or other Unix-like OS (Windows is not supported)
-  * 8G of RAM  
+  * 8G of RAM
+  * 2 vCPUs
 
 On Mac OS X, you can use [Oracle's JDK
 8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) to install
@@ -269,5 +270,5 @@ libraries](http://druid.io/docs/latest/development/libraries.html)for more infor
 
 ## Clustered setup
 
-This quickstart sets you up with all services running on a single machine. The next step is learn about 
+This quickstart sets you up with all services running on a single machine. The next step is to learn about 
 [how to load streaming data](../tutorials/streaming.html) into Druid.

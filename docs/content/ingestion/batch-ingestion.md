@@ -62,7 +62,7 @@ of a Druid [overlord](../design/indexing-service.html). A sample task is shown b
       "type" : "hadoop",
       "inputSpec" : {
         "type" : "static",
-        "paths" : "/MyDirectory/examples/indexing/wikipedia_data.json"
+        "paths" : "/MyDirectory/example/wikipedia_data.json"
       }
     },
     "tuningConfig" : {
@@ -71,7 +71,6 @@ of a Druid [overlord](../design/indexing-service.html). A sample task is shown b
   }
 }
 ```
-
 
 |property|description|required?|
 |--------|-----------|---------|
@@ -142,21 +141,6 @@ Read Druid segments. See [here](../ingestion/update-existing-data.html) for more
 ##### `multi`
 
 Read multiple sources of data. See [here](../ingestion/update-existing-data.html) for more information.
-
-#### Metadata Update Job Spec
-
-This is a specification of the properties that tell the job how to update metadata such that the Druid cluster will see the output segments and load them.
-
-
-|Field|Type|Description|Required|
-|-----|----|-----------|--------|
-|type|String|"metadata" is the only value available.|yes|
-|connectURI|String|A valid JDBC url to metadata storage.|yes|
-|user|String|Username for db.|yes|
-|password|String|password for db.|yes|
-|segmentTable|String|Table to use in DB.|yes|
-
-These properties should parrot what you have configured for your [Coordinator](../design/coordinator.html).
 
 ### TuningConfig
 
@@ -235,121 +219,60 @@ The configuration options are:
 If you have a remote Hadoop cluster, make sure to include the folder holding your configuration `*.xml` files in your Druid `_common` configuration folder.  
 If you having dependency problems with your version of Hadoop and the version compiled with Druid, please see [these docs](../operations/other-hadoop.html).
 
-## IndexTask-based Batch Ingestion
+### Using Elastic MapReduce
 
-If you do not want to have a dependency on Hadoop for batch ingestion, you can also use the index task. This task will be much slower and less scalable than the Hadoop-based method.
+If your cluster is running on Amazon Web Services, you can use Elastic MapReduce (EMR) to index data
+from S3. To do this:
 
-The Index Task is a simpler variation of the Index Hadoop task that is designed to be used for smaller data sets. The task executes within the indexing service and does not require an external Hadoop setup to use. The grammar of the index task is as follows:
+- Create a persistent, [long-running cluster](http://docs.aws.amazon.com/ElasticMapReduce/latest/ManagementGuide/emr-plan-longrunning-transient.html).
+- When creating your cluster, enter the following configuration. If you're using the wizard, this
+should be in advanced mode under "Edit software settings".
 
-```json
-{
-  "type" : "index",
-  "spec" : {
-    "dataSchema" : {
-      "dataSource" : "wikipedia",
-      "parser" : {
-        "type" : "string",
-        "parseSpec" : {
-          "format" : "json",
-          "timestampSpec" : {
-            "column" : "timestamp",
-            "format" : "auto"
-          },
-          "dimensionsSpec" : {
-            "dimensions": ["page","language","user","unpatrolled","newPage","robot","anonymous","namespace","continent","country","region","city"],
-            "dimensionExclusions" : [],
-            "spatialDimensions" : []
-          }
-        }
-      },
-      "metricsSpec" : [
-        {
-          "type" : "count",
-          "name" : "count"
-        },
-        {
-          "type" : "doubleSum",
-          "name" : "added",
-          "fieldName" : "added"
-        },
-        {
-          "type" : "doubleSum",
-          "name" : "deleted",
-          "fieldName" : "deleted"
-        },
-        {
-          "type" : "doubleSum",
-          "name" : "delta",
-          "fieldName" : "delta"
-        }
-      ],
-      "granularitySpec" : {
-        "type" : "uniform",
-        "segmentGranularity" : "DAY",
-        "queryGranularity" : "NONE",
-        "intervals" : [ "2013-08-31/2013-09-01" ]
-      }
-    },
-    "ioConfig" : {
-      "type" : "index",
-      "firehose" : {
-        "type" : "local",
-        "baseDir" : "examples/indexing/",
-        "filter" : "wikipedia_data.json"
-       }
-    },
-    "tuningConfig" : {
-      "type" : "index",
-      "targetPartitionSize" : -1,
-      "rowFlushBoundary" : 0,
-      "numShards": 1
-    }
-  }
+```
+classification=yarn-site,properties=[mapreduce.reduce.memory.mb=6144,mapreduce.reduce.java.opts=-server -Xms2g -Xmx2g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -XX:+PrintGCDetails -XX:+PrintGCTimeStamps,mapreduce.map.java.opts=758,mapreduce.map.java.opts=-server -Xms512m -Xmx512m -Duser.timezone=UTC -Dfile.encoding=UTF-8 -XX:+PrintGCDetails -XX:+PrintGCTimeStamps,mapreduce.task.timeout=1800000]
+```
+
+- Follow the instructions under "[Configure Hadoop for data
+loads](cluster.html#configure-cluster-for-hadoop-data-loads)" using the XML files from
+`/etc/hadoop/conf` on your EMR master.
+
+#### Loading from S3 with EMR
+
+- In the `jobProperties` field in the `tuningConfig` section of your Hadoop indexing task, add:
+
+```
+"jobProperties" : {
+   "fs.s3.awsAccessKeyId" : "YOUR_ACCESS_KEY",
+   "fs.s3.awsSecretAccessKey" : "YOUR_SECRET_KEY",
+   "fs.s3.impl" : "org.apache.hadoop.fs.s3native.NativeS3FileSystem",
+   "fs.s3n.awsAccessKeyId" : "YOUR_ACCESS_KEY",
+   "fs.s3n.awsSecretAccessKey" : "YOUR_SECRET_KEY",
+   "fs.s3n.impl" : "org.apache.hadoop.fs.s3native.NativeS3FileSystem",
+   "io.compression.codecs" : "org.apache.hadoop.io.compress.GzipCodec,org.apache.hadoop.io.compress.DefaultCodec,org.apache.hadoop.io.compress.BZip2Codec,org.apache.hadoop.io.compress.SnappyCodec"
 }
 ```
 
-#### Task Properties
+Note that this method uses Hadoop's builtin S3 filesystem rather than Amazon's EMRFS, and is not compatible
+with Amazon-specific features such as S3 encryption and consistent views. If you need to use those
+features, you will need to make the Amazon EMR Hadoop JARs available to Druid through one of the
+mechanisms described in the [Using other Hadoop distributions](#using-other-hadoop-distributions) section.
 
-|property|description|required?|
-|--------|-----------|---------|
-|type|The task type, this should always be "index".|yes|
-|id|The task ID. If this is not explicitly specified, Druid generates the task ID using the name of the task file and date-time stamp. |no|
-|spec|The ingestion spec. See below for more details. |yes|
+### Using other Hadoop distributions
 
-#### DataSchema
+Druid works out of the box with many Hadoop distributions.
 
-This field is required.
+If you are having dependency conflicts between Druid and your version of Hadoop, you can try
+searching for a solution in the [Druid user groups](https://groups.google.com/forum/#!forum/druid-
+user), or reading the Druid [Different Hadoop Versions](..//operations/other-hadoop.html) documentation.
 
-See [Ingestion](../ingestion/index.html)
+## Command Line Hadoop Indexer
 
-#### IOConfig
+If you don't want to use a full indexing service to use Hadoop to get data into Druid, you can also use the standalone command line Hadoop indexer. 
+See [here](../ingestion/command-line-hadoop-indexer.html) for more info.
 
-This field is required. You can specify a type of [Firehose](../ingestion/firehose.html) here.
+## IndexTask-based Batch Ingestion
 
-#### TuningConfig
-
-The tuningConfig is optional and default parameters will be used if no tuningConfig is specified. See below for more details.
-
-|property|description|default|required?|
-|--------|-----------|-------|---------|
-|type|The task type, this should always be "index".|None.|yes|
-|targetPartitionSize|Used in sharding. Determines how many rows are in each segment. Set this to -1 to use numShards instead for sharding.|5000000|no|
-|rowFlushBoundary|Used in determining when intermediate persist should occur to disk.|500000|no|
-|numShards|Directly specify the number of shards to create. You can skip the intermediate persist step if you specify the number of shards you want and set targetPartitionSize=-1.|null|no|
-|indexSpec|defines segment storage format options to be used at indexing time, see [IndexSpec](#indexspec)|null|no|
-
-#### IndexSpec
-
-The indexSpec defines segment storage format options to be used at indexing
-time, such as bitmap type, and column compression formats.
-
-The indexSpec is optional and default parameters will be used if not specified.
-
-|property|description|possible values|default|required?|
-|--------|-----------|---------------|-------|---------|
-|bitmap|type of bitmap compression to use for inverted indices.|`"concise"`, `"roaring"`|`"concise"`|no|
-|dimensionCompression|compression format for dimension columns (currently only affects single-value dimensions, multi-value dimensions are always uncompressed)|`"uncompressed"`, `"lz4"`, `"lzf"`|`"lz4"`|no|
-|metricCompression|compression format for metric columns, defaults to LZ4|`"lz4"`, `"lzf"`|`"lz4"`|no|
+If you do not want to have a dependency on Hadoop for batch ingestion, you can also use the index task. This task will be much slower and less scalable than the Hadoop-based method. See [here](../ingestion/tasks.html)for more info.   
 
 Having Problems?
 ----------------

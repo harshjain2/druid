@@ -29,7 +29,7 @@ good starting point. This hardware offers:
 - 61 GB RAM
 - 160 GB SSD storage
 
-Druid Brokers accept queries and farm them out to the rest of the cluster. They also maintain an
+Druid Brokers accept queries and farm them out to the rest of the cluster. They also optionally maintain an
 in-memory query cache. These servers benefit greatly from CPU and RAM, and can also be deployed on
 the equivalent of an AWS [r3.2xlarge](https://aws.amazon.com/ec2/instance-types/#r3). This hardware
 offers:
@@ -136,13 +136,13 @@ druid.extensions.loadList=["druid-hdfs-storage"]
 #druid.storage.storageDirectory=var/druid/segments
 
 druid.storage.type=hdfs
-druid.storage.storageDirectory=hdfs://namenode.example.com:9000/druid/segments
+druid.storage.storageDirectory=/druid/segments
 
 #druid.indexer.logs.type=file
 #druid.indexer.logs.directory=var/druid/indexing-logs
 
 druid.indexer.logs.type=hdfs
-druid.indexer.logs.directory=hdfs://namenode.example.com:9000/druid/indexing-logs
+druid.indexer.logs.directory=/druid/indexing-logs
 ```
 
 Also,
@@ -212,14 +212,18 @@ hardware. The most commonly adjusted configurations are:
 - `druid.server.maxSize` and `druid.segmentCache.locations` on Historical Nodes
 - `druid.worker.capacity` on MiddleManagers
 
+```note
+Keep -XX:MaxDirectMemory >= numThreads*sizeBytes, otherwise Druid will fail to start up..
+```
+
 Please see the Druid [configuration
 documentation](../configuration/index.html) for a full description of all
 possible configuration options.
 
 ## Tune Druid Brokers
 
-Druid Brokers also benefit greatly from being tuned to the hardware it
-runs on. If you are using [r3.2xlarge](https://aws.amazon.com/ec2/instance-types/#r3) EC2 instances,
+Druid Brokers also benefit greatly from being tuned to the hardware they 
+run on. If you are using [r3.2xlarge](https://aws.amazon.com/ec2/instance-types/#r3) EC2 instances,
 or similar hardware, the configuration in the distribution is a reasonable starting point.
 
 If you are using different hardware, we recommend adjusting configurations for your specific
@@ -232,6 +236,10 @@ hardware. The most commonly adjusted configurations are:
 - `druid.processing.numThreads`
 - `druid.query.groupBy.maxIntermediateRows`
 - `druid.query.groupBy.maxResults`
+
+```note
+Keep -XX:MaxDirectMemory >= numThreads*sizeBytes, otherwise Druid will fail to start up..
+```
 
 Please see the Druid [configuration
 documentation](../configuration/index.html) for a full description of all
@@ -300,6 +308,5 @@ You can add more Brokers as needed based on query load.
 
 ## Loading data
 
-Congratulations, you now have a Druid cluster!
- 
-TODO-FJ
+Congratulations, you now have a Druid cluster! The next step is to learn about recommended ways to load data into 
+Druid based on your use case. Read more about [loading data]().
